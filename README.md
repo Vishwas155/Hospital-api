@@ -9,51 +9,48 @@ are answered from the database in a few milliseconds.
 
 ## API
 
-### `GET /api/v1/hospitals/nearby`
-
-| Param | Required | Notes |
-| --- | --- | --- |
-| `lat`, `lng` | one of these or `pincode` | Must be inside India |
-| `pincode` | | 6-digit Indian PIN code; used as the location when no coordinates are given |
-| `radius_km` | no | Default `20`, allowed `1`–`20` (`MIN_RADIUS_KM`/`MAX_RADIUS_KM`); anything else is a `400` |
-| `limit` | no | Default `5`, max `10` |
+**Full documentation for API users is served by the API itself at [`/docs`](https://hospital-api-production-2fe9.up.railway.app/docs)**
+(getting started, authentication, parameters, response fields, errors, rate limits, code examples, and a
+"try it" console). The raw OpenAPI 3 spec is at `/openapi.json`.
 
 ```bash
-curl "http://localhost:3000/api/v1/hospitals/nearby?lat=12.9716&lng=77.5946"
-curl "http://localhost:3000/api/v1/hospitals/nearby?pincode=570001&radius_km=10"
+curl "https://hospital-api-production-2fe9.up.railway.app/api/v1/hospitals/nearby?lat=12.9716&lng=77.5946" \
+  -H "X-API-Key: YOUR_API_KEY"
 ```
 
-```jsonc
-{
-  "query": { "lat": 12.3141, "lng": 76.6441, "pincode": "570001", "radius_km": 20, "resolved_from": "pincode" },
-  "within_radius": true,           // false => nothing inside the radius; these are the nearest outside it
-  "message": "...",                // present when within_radius is false
-  "warnings": ["..."],             // e.g. some details were still loading (repeat the request shortly)
-  "took_ms": 7956,
-  "count": 5,
-  "hospitals": [{
-    "id": "uuid",
-    "name": "Krishna Rajendra Hospital",
-    "distance_km": 0.71,
-    "address": "KR Hospital, Irwin Rd, Devaraja Mohalla, Yadavagiri, Mysuru, Karnataka 570001",
-    "pincode": "570001",
-    "phones": ["+918212526200"],
-    "website": "https://...",
-    "category": "Government hospital",
-    "specialties": [],
-    "open_24_hours": true,
-    "emergency": null,
-    "rating": 4.0,
-    "review_count": 1520,
-    "lat": 12.3140, "lng": 76.6507,
-    "google_maps_url": "https://www.google.com/maps/place/?q=place_id:...",
-    "sources": ["osm", "google_maps"],
-    "last_updated_at": "2026-10-09T06:00:43.072Z"
-  }]
-}
+| Endpoint | Auth | |
+| --- | --- | --- |
+| `GET /api/v1/hospitals/nearby` | API key | `lat`+`lng` or `pincode`; optional `radius_km` (1–20), `limit` (1–10) |
+| `GET /health` | none | `{"status":"ok"}` |
+| `GET /docs`, `GET /openapi.json` | none | Documentation |
+| `POST/GET/DELETE /admin/keys` | admin key | Manage API keys (below) |
+
+## API keys (for the API owner)
+
+Every `/api/v1` request needs an API key in the `X-API-Key` header (or `Authorization: Bearer <key>`).
+Keys are managed with the admin endpoints, which need the `ADMIN_API_KEY` secret in an `X-Admin-Key`
+header. On Railway, `ADMIN_API_KEY` is in the **Hospital-api** service's **Variables** tab.
+
+```bash
+BASE=https://hospital-api-production-2fe9.up.railway.app
+ADMIN=...   # the ADMIN_API_KEY value
+
+# Create a key for a client. The full key is in the response only this once; send it to the client.
+curl -X POST $BASE/admin/keys -H "X-Admin-Key: $ADMIN" -H "Content-Type: application/json" \
+  -d '{"name": "Acme mobile app"}'
+
+# List keys with usage (request_count, last_used_at). Only the first characters (key_prefix) are shown.
+curl $BASE/admin/keys -H "X-Admin-Key: $ADMIN"
+
+# Revoke a key (by its id from the list). It stops working within a minute.
+curl -X DELETE $BASE/admin/keys/<id> -H "X-Admin-Key: $ADMIN"
 ```
 
-### `GET /health`
+- Keys are stored only as SHA-256 hashes; a lost key can't be recovered, so create a new one and revoke
+  the old.
+- Each key gets its own rate limit (`RATE_LIMIT_PER_MINUTE`, default 60/min) on the hospitals endpoint.
+- Without `ADMIN_API_KEY` set, the admin endpoints don't exist. `REQUIRE_API_KEY=false` turns key checks
+  off (e.g. for local development).
 
 ## How a request works
 
@@ -83,7 +80,7 @@ for `CACHE_TTL_DAYS` (7).
 npm install
 npx playwright install chromium
 npm run db:dev        # embedded Postgres on :5433 (no Docker needed); keep it running
-npm run dev           # API on :3000; imports India's OSM hospitals in the background (~2 min)
+REQUIRE_API_KEY=false npm run dev   # API on :3000 (docs at /docs); imports India's OSM hospitals (~2 min)
 npm test              # unit tests
 ```
 
@@ -118,7 +115,10 @@ The repo has a `Dockerfile` (built on Playwright's image, so Chromium is include
 | `GOOGLE_BLOCK_COOLDOWN_MIN` | `30` | Pause Google Maps after a captcha |
 | `PROXY_URL` | — | e.g. `http://user:pass@host:port` for Chromium |
 | `HTTP_USER_AGENT` | `nearby-hospitals-api/1.0` | Nominatim asks for an identifying UA with contact info |
-| `RATE_LIMIT_PER_MINUTE` | `60` | Per client IP |
+| `RATE_LIMIT_PER_MINUTE` | `60` | Per API key, on the hospitals endpoint |
+| `ADMIN_API_KEY` | — | Secret for the `/admin/keys` endpoints; they're off when unset |
+| `REQUIRE_API_KEY` | `true` | `false` lets `/api/v1` requests through without a key |
+| `PUBLIC_URL` | Railway's domain | Base URL shown in the docs' examples |
 
 ## Known limitations
 

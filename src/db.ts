@@ -51,6 +51,17 @@ CREATE TABLE IF NOT EXISTS covered_areas (
 );
 CREATE INDEX IF NOT EXISTS covered_areas_source_idx ON covered_areas (source, scraped_at);
 
+CREATE TABLE IF NOT EXISTS api_keys (
+  id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  name          text NOT NULL,
+  key_prefix    text NOT NULL,
+  key_hash      text NOT NULL UNIQUE,
+  request_count bigint NOT NULL DEFAULT 0,
+  last_used_at  timestamptz,
+  created_at    timestamptz NOT NULL DEFAULT now(),
+  revoked_at    timestamptz
+);
+
 CREATE TABLE IF NOT EXISTS geocode_cache (
   key        text PRIMARY KEY,
   value      jsonb NOT NULL,

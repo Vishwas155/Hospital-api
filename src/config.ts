@@ -64,6 +64,16 @@ export const config = {
   // Nominatim's usage policy asks for an identifying User-Agent with contact details.
   httpUserAgent: process.env.HTTP_USER_AGENT ?? 'nearby-hospitals-api/1.0',
 
+  // API keys: /api/v1 requests need an X-API-Key header. Keys are created through the /admin
+  // endpoints, which are protected by ADMIN_API_KEY and switched off when it isn't set.
+  requireApiKey: bool('REQUIRE_API_KEY', true),
+  adminApiKey: process.env.ADMIN_API_KEY || undefined,
+  // Shown in the docs' examples. Railway sets RAILWAY_PUBLIC_DOMAIN automatically.
+  publicUrl:
+    process.env.PUBLIC_URL ??
+    (process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : 'http://localhost:3000'),
+
+  // Requests per minute, per API key (per IP for requests without one).
   rateLimitPerMinute: num('RATE_LIMIT_PER_MINUTE', 60),
   logLevel: process.env.LOG_LEVEL ?? 'info',
 };
