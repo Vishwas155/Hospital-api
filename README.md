@@ -114,7 +114,7 @@ The repo has a `Dockerfile` (built on Playwright's image, so Chromium is include
 | `CACHE_TTL_DAYS` | `7` | How long scraped data and the OSM import are reused |
 | `OSM_IMPORT_ENABLED` | `true` | Keep all of India's OSM hospitals in the database |
 | `GOOGLE_MAPS_ENABLED` | `true` | `false` = OpenStreetMap only |
-| `MAX_BROWSER_TABS` | `6` | Chromium tabs shared by all requests (~150 MB each) |
+| `MAX_BROWSER_TABS` | `6` | Chromium tabs shared by all requests (~400 MB each while open; idle tabs close after 60 s) |
 | `GOOGLE_BLOCK_COOLDOWN_MIN` | `30` | Pause Google Maps after a captcha |
 | `PROXY_URL` | — | e.g. `http://user:pass@host:port` for Chromium |
 | `HTTP_USER_AGENT` | `nearby-hospitals-api/1.0` | Nominatim asks for an identifying UA with contact info |

@@ -58,12 +58,31 @@ function getContext(): Promise<BrowserContext> {
 
 // A small pool of reusable tabs shared by all requests, capped at MAX_BROWSER_TABS.
 const idlePages: Page[] = [];
+const idleSince = new WeakMap<Page, number>();
 const waiting: ((page: Page | null) => void)[] = [];
 let openPages = 0;
 
+// A Google Maps tab holds ~400 MB, so tabs idle for a minute are closed (Chromium itself stays up
+// and a new tab opens in well under a second).
+const IDLE_TAB_CLOSE_MS = 60_000;
+setInterval(() => {
+  const now = Date.now();
+  for (let i = idlePages.length - 1; i >= 0; i--) {
+    const page = idlePages[i];
+    if (now - (idleSince.get(page) ?? now) < IDLE_TAB_CLOSE_MS) continue;
+    idlePages.splice(i, 1);
+    openPages = Math.max(0, openPages - 1);
+    page.close().catch(() => {});
+  }
+}, 15_000).unref();
+
 async function acquirePage(): Promise<Page> {
-  const idle = idlePages.pop();
-  if (idle && !idle.isClosed()) return idle;
+  let idle = idlePages.pop();
+  while (idle?.isClosed()) {
+    openPages = Math.max(0, openPages - 1); // crashed while idle; free its slot
+    idle = idlePages.pop();
+  }
+  if (idle) return idle;
   if (openPages < config.maxBrowserTabs) {
     openPages++;
     try {
@@ -85,8 +104,12 @@ function releasePage(page: Page, healthy: boolean): void {
     return;
   }
   const next = waiting.shift();
-  if (next) next(page);
-  else idlePages.push(page);
+  if (next) {
+    next(page);
+  } else {
+    idleSince.set(page, Date.now());
+    idlePages.push(page);
+  }
 }
 
 /** Starts Chromium ahead of the first request, which would otherwise pay its ~1-2 s launch. */
